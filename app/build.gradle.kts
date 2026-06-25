@@ -12,8 +12,8 @@ android {
         applicationId = "ua.vitaliyshkarupa.pmonitorimporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3-diagnostics"
+        versionCode = 5
+        versionName = "1.4-api-atb-silpo"
         multiDexEnabled = true
     }
 
