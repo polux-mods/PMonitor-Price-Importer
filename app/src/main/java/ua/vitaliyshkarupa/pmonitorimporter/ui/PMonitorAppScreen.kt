@@ -1,5 +1,11 @@
 package ua.vitaliyshkarupa.pmonitorimporter.ui
 
+import android.graphics.Bitmap
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -41,10 +47,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import ua.vitaliyshkarupa.pmonitorimporter.model.ImportLogItem
 import ua.vitaliyshkarupa.pmonitorimporter.model.ImportStats
 
@@ -54,9 +60,11 @@ fun PMonitorImporterApp(
     onOpenFile: () -> Unit,
     onOpenLast: () -> Unit,
     onToggleCompetitor: (String) -> Unit,
+    onOpenStoreSetup: (String) -> Unit,
     onImport: () -> Unit,
     onSave: () -> Unit,
     onHome: () -> Unit,
+    onFinishStoreSetup: (Boolean) -> Unit,
     onDismissError: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -99,7 +107,18 @@ fun PMonitorImporterApp(
         ) {
             when (state.screen) {
                 AppScreen.HOME -> HomeScreen(state, onOpenFile, onOpenLast)
-                AppScreen.COMPETITORS -> CompetitorsScreen(state, onToggleCompetitor, onImport, onHome)
+                AppScreen.COMPETITORS -> CompetitorsScreen(
+                    state = state,
+                    onToggleCompetitor = onToggleCompetitor,
+                    onOpenStoreSetup = onOpenStoreSetup,
+                    onImport = onImport,
+                    onHome = onHome
+                )
+                AppScreen.STORE_WEBVIEW -> StoreWebViewScreen(
+                    state = state,
+                    onDone = { onFinishStoreSetup(true) },
+                    onCancel = { onFinishStoreSetup(false) }
+                )
                 AppScreen.IMPORTING -> ImportingScreen(state)
                 AppScreen.RESULT -> ResultScreen(state, onSave, onHome)
             }
@@ -159,6 +178,7 @@ private fun HeaderBlock() {
 private fun CompetitorsScreen(
     state: AppUiState,
     onToggleCompetitor: (String) -> Unit,
+    onOpenStoreSetup: (String) -> Unit,
     onImport: () -> Unit,
     onHome: () -> Unit
 ) {
@@ -172,8 +192,21 @@ private fun CompetitorsScreen(
         Text(state.fileName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(18.dp))
         Text("Вибери конкурентів для імпорту", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        ) {
+            Text(
+                "Перед імпортом можна відкрити сайт конкурента у WebView, вибрати місто/магазин і натиснути “Готово”. Cookies цього вибору будуть використані під час пошуку цін.",
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
         Spacer(Modifier.height(10.dp))
         state.competitors.forEach { competitor ->
+            val configured = competitor in state.configuredStores
             Card(
                 shape = RoundedCornerShape(18.dp),
                 modifier = Modifier
@@ -181,17 +214,31 @@ private fun CompetitorsScreen(
                     .padding(vertical = 5.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = competitor in state.selectedCompetitors,
-                        onCheckedChange = { onToggleCompetitor(competitor) }
-                    )
-                    Text(competitor, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = competitor in state.selectedCompetitors,
+                            onCheckedChange = { onToggleCompetitor(competitor) }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(competitor, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                if (configured) "Магазин/місто вибрано у WebView" else "Магазин/місто ще не вибрано",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (configured) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { onOpenStoreSetup(competitor) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (configured) "Змінити магазин" else "Вибрати магазин")
+                    }
                 }
             }
         }
@@ -203,6 +250,100 @@ private fun CompetitorsScreen(
         OutlinedButton(onClick = onHome, modifier = Modifier.fillMaxWidth()) {
             Text("Назад")
         }
+    }
+}
+
+@Composable
+private fun StoreWebViewScreen(
+    state: AppUiState,
+    onDone: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val competitor = state.webSetupCompetitor ?: "Магазин"
+    var isLoading by remember { mutableStateOf(true) }
+    var currentUrl by remember(state.webSetupUrl) { mutableStateOf(state.webSetupUrl) }
+    var webView by remember { mutableStateOf<WebView?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(12.dp)
+    ) {
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Text("Вибір магазину: $competitor", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "На сайті вибери потрібне місто, адресу або магазин. Після цього натисни “Готово”.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(currentUrl, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            val view = webView
+                            if (view != null && view.canGoBack()) view.goBack() else onCancel()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Назад") }
+                    Button(
+                        onClick = {
+                            CookieManager.getInstance().flush()
+                            onDone()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Готово") }
+                }
+            }
+        }
+        AnimatedVisibility(isLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        }
+        Spacer(Modifier.height(8.dp))
+        AndroidView(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
+            factory = { context ->
+                WebView(context).apply {
+                    webView = this
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.databaseEnabled = true
+                    settings.loadsImagesAutomatically = true
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                    webChromeClient = WebChromeClient()
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                            isLoading = true
+                            currentUrl = url.orEmpty()
+                        }
+
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            isLoading = false
+                            currentUrl = url.orEmpty()
+                            CookieManager.getInstance().flush()
+                        }
+                    }
+                    loadUrl(state.webSetupUrl)
+                }
+            },
+            update = { view ->
+                if (view.url.isNullOrBlank() && state.webSetupUrl.isNotBlank()) {
+                    view.loadUrl(state.webSetupUrl)
+                }
+            }
+        )
     }
 }
 

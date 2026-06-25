@@ -52,9 +52,11 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenLast = viewModel::openLastImport,
                     onToggleCompetitor = viewModel::toggleCompetitor,
+                    onOpenStoreSetup = viewModel::openStoreSetup,
                     onImport = viewModel::importSelected,
                     onSave = { saveLauncher.launch(viewModel.suggestedFileName()) },
                     onHome = viewModel::goHome,
+                    onFinishStoreSetup = viewModel::finishStoreSetup,
                     onDismissError = viewModel::dismissError
                 )
             }

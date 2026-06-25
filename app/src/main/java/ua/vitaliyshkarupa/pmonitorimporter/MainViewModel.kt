@@ -9,7 +9,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ua.vitaliyshkarupa.pmonitorimporter.cache.CacheService
+import ua.vitaliyshkarupa.pmonitorimporter.competitors.CompetitorWebConfigs
 import ua.vitaliyshkarupa.pmonitorimporter.competitors.PriceImportRepository
+import ua.vitaliyshkarupa.pmonitorimporter.store.StoreSessionService
 import ua.vitaliyshkarupa.pmonitorimporter.excel.ExcelService
 import ua.vitaliyshkarupa.pmonitorimporter.excel.LoadedWorkbook
 import ua.vitaliyshkarupa.pmonitorimporter.ui.AppScreen
@@ -19,6 +21,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val excelService = ExcelService()
     private val repository = PriceImportRepository(excelService)
     private val cacheService = CacheService(application)
+    private val storeSessionService = StoreSessionService(application)
 
     private var loadedWorkbook: LoadedWorkbook? = null
     private var outputBytes: ByteArray? = null
@@ -42,6 +45,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         fileName = loaded.session.fileName,
                         competitors = loaded.session.competitors,
                         selectedCompetitors = loaded.session.competitors.toSet(),
+                        configuredStores = storeSessionService.configuredSet(loaded.session.competitors),
                         stats = null,
                         logs = emptyList(),
                         error = null,
@@ -60,6 +64,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val selected = state.selectedCompetitors.toMutableSet()
             if (name in selected) selected.remove(name) else selected.add(name)
             state.copy(selectedCompetitors = selected)
+        }
+    }
+
+    fun openStoreSetup(competitor: String) {
+        val config = CompetitorWebConfigs.forCompetitor(competitor)
+        if (config == null) {
+            _uiState.update { it.copy(error = "Для цього конкурента WebView ще не підтримується") }
+            return
+        }
+        _uiState.update {
+            it.copy(
+                screen = AppScreen.STORE_WEBVIEW,
+                webSetupCompetitor = config.competitor,
+                webSetupUrl = config.startUrl,
+                error = null
+            )
+        }
+    }
+
+    fun finishStoreSetup(saveChoice: Boolean) {
+        val competitor = _uiState.value.webSetupCompetitor
+        if (saveChoice && competitor != null) storeSessionService.markConfigured(competitor)
+        _uiState.update { state ->
+            state.copy(
+                screen = AppScreen.COMPETITORS,
+                webSetupCompetitor = null,
+                webSetupUrl = "",
+                configuredStores = storeSessionService.configuredSet(state.competitors)
+            )
         }
     }
 
