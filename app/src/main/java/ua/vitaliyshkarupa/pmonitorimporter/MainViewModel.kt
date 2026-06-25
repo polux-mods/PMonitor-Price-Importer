@@ -96,6 +96,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+
+    fun openDiagnostics(competitor: String) {
+        val config = CompetitorWebConfigs.forCompetitor(competitor)
+        if (config == null) {
+            _uiState.update { it.copy(error = "Для цього конкурента діагностика ще не підтримується") }
+            return
+        }
+        _uiState.update {
+            it.copy(
+                screen = AppScreen.DIAGNOSTICS_WEBVIEW,
+                webSetupCompetitor = config.competitor,
+                webSetupUrl = config.startUrl,
+                error = null
+            )
+        }
+    }
+
+    fun finishDiagnostics() {
+        _uiState.update { state ->
+            state.copy(
+                screen = AppScreen.COMPETITORS,
+                webSetupCompetitor = null,
+                webSetupUrl = ""
+            )
+        }
+    }
+
     fun importSelected() {
         val loaded = loadedWorkbook ?: return
         val selected = _uiState.value.selectedCompetitors

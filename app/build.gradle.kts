@@ -12,8 +12,8 @@ android {
         applicationId = "ua.vitaliyshkarupa.pmonitorimporter"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1-webview"
+        versionCode = 4
+        versionName = "1.3-diagnostics"
         multiDexEnabled = true
     }
 

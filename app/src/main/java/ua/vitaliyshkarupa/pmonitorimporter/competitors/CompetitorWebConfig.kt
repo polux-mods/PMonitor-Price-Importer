@@ -22,19 +22,19 @@ object CompetitorWebConfigs {
         ),
         CompetitorRegistry.SILPO to CompetitorWebConfig(
             competitor = CompetitorRegistry.SILPO,
-            startUrl = "https://silpo.ua",
+            startUrl = "https://www.silpo.ua",
             cookieUrls = listOf(
-                "https://silpo.ua",
                 "https://www.silpo.ua",
+                "https://silpo.ua",
                 "https://shop.silpo.ua"
             )
         ),
         CompetitorRegistry.EVA to CompetitorWebConfig(
             competitor = CompetitorRegistry.EVA,
-            startUrl = "https://eva.ua/ua/",
+            startUrl = "https://www.eva.ua/ua/",
             cookieUrls = listOf(
-                "https://eva.ua",
-                "https://www.eva.ua"
+                "https://www.eva.ua",
+                "https://eva.ua"
             )
         ),
         CompetitorRegistry.AVRORA to CompetitorWebConfig(

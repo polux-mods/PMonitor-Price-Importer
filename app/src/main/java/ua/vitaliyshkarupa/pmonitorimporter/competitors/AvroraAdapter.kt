@@ -1,7 +1,10 @@
 package ua.vitaliyshkarupa.pmonitorimporter.competitors
 
-class AvroraAdapter : GenericHtmlAdapter("https://avrora.ua") {
+class AvroraAdapter : GenericHtmlAdapter(
+    primaryBaseUrl = "https://avrora.ua",
+    fallbackBaseUrls = listOf("https://www.avrora.ua")
+) {
     override val canonicalName: String = CompetitorRegistry.AVRORA
-    override fun buildSearchUrl(encodedQuery: String): String =
-        "https://avrora.ua/ua/search/?q=$encodedQuery"
+    override fun buildSearchUrl(encodedQuery: String, baseUrl: String): String =
+        "$baseUrl/ua/search/?q=$encodedQuery"
 }

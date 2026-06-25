@@ -3,7 +3,7 @@ package ua.vitaliyshkarupa.pmonitorimporter.ui
 import ua.vitaliyshkarupa.pmonitorimporter.model.ImportLogItem
 import ua.vitaliyshkarupa.pmonitorimporter.model.ImportStats
 
-enum class AppScreen { HOME, COMPETITORS, STORE_WEBVIEW, IMPORTING, RESULT }
+enum class AppScreen { HOME, COMPETITORS, STORE_WEBVIEW, DIAGNOSTICS_WEBVIEW, IMPORTING, RESULT }
 
 data class AppUiState(
     val screen: AppScreen = AppScreen.HOME,
