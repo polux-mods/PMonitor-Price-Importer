@@ -1,0 +1,3 @@
+<resources>
+    <style name="Theme.PMonitorImporter" parent="android:style/Theme.Material.Light.NoActionBar" />
+</resources>
