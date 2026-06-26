@@ -17,6 +17,10 @@ object ProductTextParser {
             .replace('є', 'е')
             .replace("’", "")
             .replace("'", "")
+            .replace("roshen", "рошен")
+            .replace("roschen", "рошен")
+            .replace(Regex("([0-9])([a-zа-я])"), "${'$'}1 ${'$'}2")
+            .replace(Regex("([a-zа-я])([0-9])"), "${'$'}1 ${'$'}2")
             .replace(Regex("[^a-zа-я0-9,.%]+"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
@@ -29,13 +33,40 @@ object ProductTextParser {
             .filter { it.length >= 2 && it !in stopWords }
             .take(8)
             .joinToString(" ")
-        return barcode?.takeIf { it.length >= 8 } ?: short.ifBlank { name.take(80) }
+        // Для сайтів магазинів назва працює стабільніше, ніж штрихкод: частина пошукових API
+        // не шукає по EAN, тому штрихкод залишаємо для перевірки збігу, а не для основного запиту.
+        return short.ifBlank { name.take(80) }
+    }
+
+
+    fun searchQueryVariants(name: String, brand: String?, barcode: String?): List<String> {
+        val normalizedName = normalize(name)
+            .split(" ")
+            .filter { it.length >= 2 && it !in stopWords && !unitTokens.contains(it) }
+            .joinToString(" ")
+        val compactName = normalizedName
+            .split(" ")
+            .take(6)
+            .joinToString(" ")
+        return listOf(
+            searchableQuery(name, brand, barcode),
+            searchableQuery(name, null, barcode),
+            compactName,
+            name.take(90)
+        )
+            .map { it.trim() }
+            .filter { it.length >= 2 }
+            .distinct()
     }
 
     fun tokens(text: String?): Set<String> = normalize(text)
         .split(" ")
         .map { it.trim() }
-        .filter { it.length >= 2 && it !in stopWords }
+        .filter { it.length >= 2 && it !in stopWords && !unitTokens.contains(it) }
+        .toSet()
+
+    fun importantTokens(text: String?): Set<String> = tokens(text)
+        .filter { token -> token.length >= 4 || token.any { it.isDigit() } }
         .toSet()
 
     fun extractAmount(text: String?): ProductAmount? {
@@ -89,4 +120,6 @@ object ProductTextParser {
         "напій", "напиток", "вода", "товар", "пак", "уп", "пет", "жб", "скло", "скл",
         "смаком", "ароматом", "газований", "негазована", "сильногазований", "слабогазована"
     )
+
+    private val unitTokens = setOf("г", "гр", "кг", "л", "мл", "шт", "pcs", "g", "kg", "l", "ml")
 }

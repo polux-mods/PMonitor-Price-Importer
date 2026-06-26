@@ -38,24 +38,27 @@ class AtbAdapter : GenericHtmlAdapter(
 
     private suspend fun searchMultisearch(product: ExcelProduct): List<WebProductCandidate> {
         delay(90)
-        val query = ProductTextParser.searchableQuery(product.name, product.brand, product.barcode)
-        val encoded = URLEncoder.encode(query, "UTF-8")
         val location = atbLocation()
-        val uid = UUID.randomUUID().toString()
-        val marker = System.currentTimeMillis().toString()
-        val url = "https://api.multisearch.io/?id=11280" +
-            "&key=63a6d0a760fd2d0562c4061b78e64754" +
-            "&lang=uk&location=$location&m=$marker&q=${marker.takeLast(6)}" +
-            "&query=$encoded&s=mini&uid=$uid"
+        for (query in ProductTextParser.searchQueryVariants(product.name, product.brand, product.barcode)) {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            val uid = UUID.randomUUID().toString()
+            val marker = System.currentTimeMillis().toString()
+            val url = "https://api.multisearch.io/?id=11280" +
+                "&key=63a6d0a760fd2d0562c4061b78e64754" +
+                "&lang=uk&location=$location&m=$marker&q=${marker.takeLast(6)}" +
+                "&query=$encoded&s=mini&uid=$uid"
 
-        val body = getText(url, referer = "https://www.atbmarket.com/sch?lang=uk&location=$location&query=$encoded")
-        val candidates = JsonProductExtractor.extract(body, "https://www.atbmarket.com")
-        if (candidates.isNotEmpty()) return candidates
+            val body = getText(url, referer = "https://www.atbmarket.com/sch?lang=uk&location=$location&query=$encoded")
+            val candidates = JsonProductExtractor.extract(body, "https://www.atbmarket.com")
+            if (candidates.isNotEmpty()) return candidates
 
-        // Якщо API повернув неочікувану схему, пробуємо звичайну сторінку пошуку АТБ.
-        val searchHtml = getText("https://www.atbmarket.com/sch?lang=uk&location=$location&query=$encoded", "https://www.atbmarket.com/")
-        val doc = Jsoup.parse(searchHtml, "https://www.atbmarket.com")
-        return HtmlProductExtractor.extract(doc, "https://www.atbmarket.com")
+            // Якщо API повернув неочікувану схему, пробуємо звичайну сторінку пошуку АТБ.
+            val searchHtml = getText("https://www.atbmarket.com/sch?lang=uk&location=$location&query=$encoded", "https://www.atbmarket.com/")
+            val doc = Jsoup.parse(searchHtml, "https://www.atbmarket.com")
+            val htmlCandidates = HtmlProductExtractor.extract(doc, "https://www.atbmarket.com")
+            if (htmlCandidates.isNotEmpty()) return htmlCandidates
+        }
+        return emptyList()
     }
 
     private fun getText(url: String, referer: String): String {
@@ -101,6 +104,6 @@ class AtbAdapter : GenericHtmlAdapter(
     }.getOrNull()
 
     private companion object {
-        const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36 PMonitorImporter/1.4"
+        const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36 PMonitorImporter/1.5"
     }
 }

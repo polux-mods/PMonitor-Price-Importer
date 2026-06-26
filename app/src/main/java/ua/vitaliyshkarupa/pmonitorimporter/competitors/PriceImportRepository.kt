@@ -32,6 +32,7 @@ class PriceImportRepository(
             } else {
                 try {
                     val candidates = adapter.search(product)
+                    val ranked = ProductMatcher.ranked(product, candidates)
                     val match = ProductMatcher.best(product, candidates)
                     if (match != null) {
                         excelService.applyPrice(
@@ -54,11 +55,15 @@ class PriceImportRepository(
                         )
                     } else {
                         lowConfidence++
+                        val top = ranked.firstOrNull()
                         ImportLogItem(
                             rowNumber = product.rowIndex + 1,
                             productName = product.name,
                             competitor = product.competitorKey,
-                            status = "Не впевнений збіг"
+                            status = if (candidates.isEmpty()) "Не знайдено кандидатів" else "Не впевнений збіг",
+                            price = top?.candidate?.price,
+                            score = top?.score,
+                            matchedTitle = top?.candidate?.title
                         )
                     }
                 } catch (t: Throwable) {

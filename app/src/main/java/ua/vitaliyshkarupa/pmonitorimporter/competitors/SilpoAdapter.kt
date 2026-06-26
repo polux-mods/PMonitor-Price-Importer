@@ -37,22 +37,26 @@ class SilpoAdapter : GenericHtmlAdapter(
     private suspend fun searchSilpoApi(product: ExcelProduct): List<WebProductCandidate> {
         delay(100)
         val branchId = silpoBranchId()
-        val query = ProductTextParser.searchableQuery(product.name, product.brand, product.barcode)
-        val encoded = URLEncoder.encode(query, "UTF-8")
-        val urls = listOf(
-            "https://sf-ecom-api.silpo.ua/v1/uk/branches/$branchId/quick-search" +
-                "?limit=10&search=$encoded&sortBy=productsList&sortDirection=desc&deliveryType=DeliveryHome",
-            "https://sf-ecom-api.silpo.ua/v1/uk/branches/$branchId/products" +
-                "?limit=47&offset=0&deliveryType=DeliveryHome&includeChildCategories=true" +
-                "&sortBy=productsList&sortDirection=desc&inStock=true&search=$encoded"
-        )
-
         val out = mutableListOf<WebProductCandidate>()
-        for (url in urls) {
-            val body = getText(url, referer = "https://silpo.ua/search?find=$encoded")
-            out += JsonProductExtractor.extract(body, "https://silpo.ua")
+
+        for (query in ProductTextParser.searchQueryVariants(product.name, product.brand, product.barcode)) {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            val urls = listOf(
+                "https://sf-ecom-api.silpo.ua/v1/uk/branches/$branchId/quick-search" +
+                    "?limit=10&search=$encoded&sortBy=productsList&sortDirection=desc&deliveryType=DeliveryHome",
+                "https://sf-ecom-api.silpo.ua/v1/uk/branches/$branchId/products" +
+                    "?limit=47&offset=0&deliveryType=DeliveryHome&includeChildCategories=true" +
+                    "&sortBy=productsList&sortDirection=desc&inStock=true&search=$encoded"
+            )
+
+            for (url in urls) {
+                val body = getText(url, referer = "https://silpo.ua/search?find=$encoded")
+                out += JsonProductExtractor.extract(body, "https://silpo.ua")
+                if (out.isNotEmpty()) break
+            }
             if (out.isNotEmpty()) break
         }
+
         return out.distinctBy { ProductTextParser.normalize(it.title) + "|" + it.price }.take(40)
     }
 
@@ -98,6 +102,6 @@ class SilpoAdapter : GenericHtmlAdapter(
     }.getOrNull()
 
     private companion object {
-        const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36 PMonitorImporter/1.4"
+        const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36 PMonitorImporter/1.5"
     }
 }

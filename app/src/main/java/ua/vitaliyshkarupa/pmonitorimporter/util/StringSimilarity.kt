@@ -22,11 +22,19 @@ object StringSimilarity {
     }
 
     fun containsImportantTokens(aRaw: String, bRaw: String): Double {
-        val a = ProductTextParser.tokens(aRaw).filter { it.length >= 4 }.toSet()
-        val b = ProductTextParser.tokens(bRaw).filter { it.length >= 4 }.toSet()
+        val a = ProductTextParser.importantTokens(aRaw)
+        val b = ProductTextParser.importantTokens(bRaw)
         if (a.isEmpty() || b.isEmpty()) return 0.0
         val contained = a.count { token -> b.any { it.contains(token) || token.contains(it) } }
         return contained.toDouble() / a.size.toDouble()
+    }
+
+    fun oneWayTokenCoverage(aRaw: String, bRaw: String): Double {
+        val a = ProductTextParser.tokens(aRaw)
+        val b = ProductTextParser.tokens(bRaw)
+        if (a.isEmpty() || b.isEmpty()) return 0.0
+        val matched = a.count { token -> b.any { it == token || it.contains(token) || token.contains(it) } }
+        return matched.toDouble() / a.size.toDouble()
     }
 
     private fun levenshtein(a: String, b: String): Int {
